@@ -2,9 +2,9 @@ import base64
 from io import BytesIO
 from flask import Flask
 import dash
-from dash import dcc, html
+from dash import dcc, html, dash_table, no_update, callback
 import plotly.express as px
-from dash.dependencies import Input, Output
+from dash.dependencies import Input, Output, State
 import dash_bootstrap_components as dbc
 import pandas as pd 
 from utils import * 
@@ -13,6 +13,16 @@ from mplsoccer import Pitch
 import ast
 from scipy.ndimage import gaussian_filter
 import matplotlib.pyplot as plt
+import re
+
+highlighted_cols = {}
+
+def swap(x, y):
+    c = None
+    c = y.copy()
+    y = x
+    x = c 
+    return x, y
 
 def format_minute(minutes, seconds):
     if len(seconds) == 1:
@@ -89,6 +99,23 @@ def update_pcp(columns):
 
     return fig
 
+# Function to create the PCP with highlighted line
+def create_pcp(columns, highlighted_country=None):
+    df = df_team_data.copy()
+    df['Color'] = df['team'].apply(lambda x: 1 if x == highlighted_country else 0)
+    dimensions = [go.parcoords.Dimension(values=df[col], label=relevant_team_data_columns[col]) for col in columns]  # Exclude the first dimension ("team")
+    first_dimension = go.parcoords.Dimension(values=df.index, label="Team", tickvals=df.index, ticktext=df["team"])
+
+    fig = go.Figure(
+        data=go.Parcoords(
+            line= dict(color=df['Color']),
+            dimensions=[first_dimension] + dimensions
+        )
+    )
+
+    return fig
+
+
 def home_layout():
     return html.Div([
         dbc.Row([
@@ -132,9 +159,14 @@ def home_layout():
             dcc.Graph(id='scatter')
             ]),
 
-        ])
-        , html.H1('ddddd', id='d')
-
+        ]),
+        html.Div(id='highlight-info'),
+        dash_table.DataTable(
+            id='data-table',
+            columns=[{'name': col, 'id': col} for col in df_team_data.columns],
+            data=df_team_data.to_dict('records'),
+            row_selectable='single'
+        )
     ])
 
 def matches_layout():
@@ -239,14 +271,18 @@ app.layout = html.Div([
     [Input('column-picker', 'value')]
 )
 def update_graph(selected_feature):
+    global highlighted_cols 
+    highlighted_cols = {}
     return update_pcp(selected_feature)
 
 # Define callback to update page content
 @app.callback(Output('page-content', 'children'), [Input('url', 'pathname')])
 def display_page(pathname):
+    global highlighted_cols
     if pathname == '/':
         return home_layout()
     else:
+        highlighted_cols = []
         return matches_layout()
     
 @app.callback(
@@ -371,7 +407,6 @@ def make_pass_nets(match_num):
 
 @app.callback(
     Output('player-dropdown', 'options'),
-    # Output('player-dropdown', 'value'),
     Input('match-dropdown', 'value')
 )
 def update_item_dropdown(match_id):
@@ -578,15 +613,86 @@ def plot_passmap(match_id, player):
 
     # return fig
 
+
 @app.callback(
-    Output('d', 'children'),
-    [Input('pcp', 'relayoutData')]
+    # Output('highlight-info', 'children'),
+    Output('data-table', 'columns'),
+    Output('data-table', 'data'),
+    [Input('feature-graph', 'restyleData')],
+    [Input('column-picker', 'value')]
 )
-def xxx(selectedData):
-    # print(selectedData)
-    return str(selectedData) if selectedData is not None else 'Dupa dupa dupa'
+def display_selected_range(selectedData, columns):
+    global highlighted_cols
+    # # Check if callback is triggered by user interaction
+    pattern = r'\d+'
+
+    df = df_team_data.copy()
+
+    if selectedData:
+
+        columns = ['team'] + columns
+        string = selectedData[0]
+        string = list(string.keys())[0]
+        index = int(''.join(re.findall(pattern, string)))
+
+        if selectedData[0][string] == None:
+            del highlighted_cols[columns[index]]
+
+            for column_name, constraint in highlighted_cols.items():
+                if isinstance(constraint[0], list):  # Check if it's a range constraint
+                    min_value1, max_value1 = constraint[0]
+                    min_value2, max_value2 = constraint[1]
+                    
+                    df = df[(df[column_name].between(min_value1, max_value1)) | (df[column_name].between(min_value2, max_value2))]
+                else:  # It's a single value constraint
+                    value = constraint
+                    df = df[(df[column_name] >= value[0]) & (df[column_name] <= value[1])]
+            
+            return [{'name': relevant_team_data_columns[col], 'id': col} for col in columns], df.to_dict('records')
 
 
-# Run the server
+        values = selectedData[0][string][0]
+        if values[0] > values[1]:
+            values[0], values[1] = swap(values[0],  values[1])
+
+        # highlighted_cols.append((columns[index], values))
+        # print(highlighted_cols)
+        
+
+        highlighted_cols[columns[index]] = values
+        # print(highlighted_cols)
+        # print(df_team_data[(df_team_data[columns[index]] > values[0]) & (df_team_data[columns[index]] < values[1])][columns].to_dict('records'))
+        for column_name, constraint in highlighted_cols.items():
+            if isinstance(constraint[0], list):  # Check if it's a range constraint
+                min_value1, max_value1 = constraint[0]
+                min_value2, max_value2 = constraint[1]
+                
+                df = df[(df[column_name].between(min_value1, max_value1)) | (df[column_name].between(min_value2, max_value2))]
+            else:  # It's a single value constraint
+                value = constraint
+                df = df[(df[column_name] >= value[0]) & (df[column_name] <= value[1])]
+
+        return [{'name': relevant_team_data_columns[col], 'id': col} for col in columns], df.to_dict('records')
+
+    return no_update, no_update
+
+@callback(
+    Output('feature-graph', 'figure', allow_duplicate=True),
+    Output('highlight-info', 'children'),
+    Input('column-picker', 'value'),
+    Input('data-table', 'selected_rows'),
+    State('data-table', 'data'),
+    prevent_initial_call = True
+)
+def update_pc(columns, selected_country, data):
+    global highlighted_cols
+    highlighted_cols = {}
+    country = data[selected_country[0]]['team']
+    print(pd.DataFrame(data)[['team'] + columns])
+    figure = create_pcp(columns=columns, highlighted_country=country)
+
+    return figure, str(selected_country)
+
+# Run the app
 if __name__ == '__main__':
     app.run_server(debug=True)
