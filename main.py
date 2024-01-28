@@ -63,7 +63,7 @@ def make_carry_df(df):
 
 def make_shot_df(df):
     # df = pd.read_csv('events.csv')
-    params = ['match_id','location', 'minute', 'shot_end_location', 'type', 'shot_outcome', 'player', 'pass_body_part', 'second', 'team_id', 'team', 'pass_recipient']
+    params = ['match_id','location', 'minute', 'shot_end_location', 'type', 'shot_outcome', 'player', 'pass_body_part', 'second', 'team_id', 'team', 'pass_recipient','shot_statsbomb_xg']
     df = df.loc[:,params]
     df['team'] = df['team'].apply(name_change)
     df_p = df[df['type'] == 'Shot']
@@ -377,9 +377,14 @@ def matches_layout():
                     html.Img(id='heatmap-home')
                 ]),
                 dbc.Row([
-                    ### SHOTMAP
-
+                    dbc.Col([
+                        icon('Rucham ci matke 2', id='shotmap1')
+                    ])
                 ]),
+                dbc.Row([
+                    ### PASS HEATMAP
+                    html.Img(id='shotmap-home')
+                ])
             ]),
             dbc.Col([
                 dbc.Row([
@@ -402,8 +407,14 @@ def matches_layout():
                     html.Img(id='heatmap-away')
                 ]),
                 dbc.Row([
-                    ### SHOTMAP
+                    dbc.Col([
+                        icon('average positions', id='shotmap2')
+                    ])
                 ]),
+                dbc.Row([
+                    ### PASS HEATMAP
+                    html.Img(id='shotmap-away')
+                ])
             ]),
             dbc.Col([
                 dbc.RadioItems(id='type-select', 
@@ -480,17 +491,24 @@ def scatter(param1, param2, param3):
 @app.callback(
     Output(component_id='passnet-home', component_property='src'),
     Output(component_id='passnet-away', component_property='src'),
-    Output(component_id='heatmap-away', component_property='src'),
     Output(component_id='heatmap-home', component_property='src'),
+    Output(component_id='heatmap-away', component_property='src'),
+    Output(component_id='shotmap-home', component_property='src'),
+    Output(component_id='shotmap-away', component_property='src'),
     Input('match-dropdown', 'value')
 )
 def make_pass_nets(match_num):
-    def make_pass_network_home(match_id, thresh = 3):
-        minute, second = df[(df['match_id'] == match_id) & (df['type'] == "Substitution")][['minute', 'second']].iloc[0].tolist()
-        team_id = df_pass[(df_pass['match_id'] == match_id)]['team_id'].unique()[0]
-        team_name = id_to_team[team_id]
+    team1, team2 = my_dict[match_num]
+    # print(team1, team2)
 
-        df_nonsub = df_pass[(df_pass['minute'] < minute) & (df_pass['match_id'] == match_id) & (df_pass['team_id'] == team_id)]
+    def make_pass_network_home(match_id, thresh = 3):
+        team1, team2 = my_dict[match_num]
+        minute, second = df[(df['match_id'] == match_id) & (df['type'] == "Substitution")][['minute', 'second']].iloc[0].tolist()
+        team_name = team1
+
+        df_nonsub = df_pass[(df_pass['minute'] < minute) & (df_pass['match_id'] == match_id) & (df_pass['team'] == team1)]
+        df_nonsub['x'], df_nonsub['y'] = df_nonsub['x'] * 6/5, df_nonsub['y'] * .8
+        df_nonsub['x_end'], df_nonsub['y_end'] = df_nonsub['x_end'] * 6/5, df_nonsub['y_end'] * .8
         avg_pos = df_nonsub.groupby('player')[['x', 'y']].agg({
         'x':['mean'],
         'y':['mean', 'count']
@@ -504,10 +522,10 @@ def make_pass_nets(match_num):
         df_plot = x[x['count_x'] > thresh]
         pitch = Pitch(pitch_type='statsbomb', pitch_color='#aabb97', line_color='white')
         fig, ax = pitch.draw(figsize=(16, 11), constrained_layout=False, tight_layout=True)
-        # ax.invert_yaxis()
-        # fig.set_facecolor('#22312b')
+
         for index, row in df_plot.iterrows():
             pitch.arrows(1.2 * row['x'], .8 * row['y'], 1.2 * row['x_end'], .8 *row['y_end'], ax=ax, color= 'blue', alpha=.8, headwidth = 6, width=row['count_x']/3)
+        
         nodes = pitch.scatter(1.2 * avg_pos.x, .8 * avg_pos.y, s=300, alpha = .4, ax=ax)
         buf = BytesIO()
 
@@ -519,10 +537,16 @@ def make_pass_nets(match_num):
         return fig_bar_matplotlib, team_name
     
     def make_pass_network_away(match_id, thresh = 3):
+        team1, team2 = my_dict[match_num]
         minute, second = df[(df['match_id'] == match_id) & (df['type'] == "Substitution")][['minute', 'second']].iloc[0].tolist()
-        team_id = df_pass[(df_pass['match_id'] == match_id)]['team_id'].unique()[1]
-        team_name = id_to_team[team_id]
-        df_nonsub = df_pass[(df_pass['minute'] < minute) & (df_pass['match_id'] == match_id) & (df_pass['team_id'] == team_id)]
+        # team_id = df_pass[(df_pass['team'] == team2)]['team_id'].unique()
+        # print(id_to_team[team_id])
+        # print(id_to_team[team_to_id[team2]])
+        team_name = team2
+
+        df_nonsub = df_pass[(df_pass['minute'] < minute) & (df_pass['match_id'] == match_id) & (df_pass['team'] == team2)]
+        df_nonsub['x'], df_nonsub['y'] = df_nonsub['x'] * 6/5, df_nonsub['y'] * 0.8
+        df_nonsub['x_end'], df_nonsub['y_end'] = df_nonsub['x_end'] * 6/5, df_nonsub['y_end'] * 0.8
         avg_pos = df_nonsub.groupby('player')[['x', 'y']].agg({
         'x':['mean'],
         'y':['mean', 'count']
@@ -550,8 +574,9 @@ def make_pass_nets(match_num):
         return fig_bar_matplotlib, team_name
     
     def make_heatmaps(match_id):
-        match_df_a = df_pass[(df_pass['match_id'] == match_id) & (df_pass['team'] == my_dict[match_id][0])]
-        match_df_b = df_pass[(df_pass['match_id'] == match_id) & (df_pass['team'] == my_dict[match_id][1])]
+        team1, team2 = my_dict[match_num]
+        match_df_a = df_pass[(df_pass['match_id'] == match_id) & (df_pass['team'] == team1)]
+        match_df_b = df_pass[(df_pass['match_id'] == match_id) & (df_pass['team'] == team2)]
 
         # Heatmap for Team a
         pitch = Pitch(pitch_type='statsbomb', pitch_color='#aabb97', line_color='white', line_zorder=2)
@@ -575,11 +600,53 @@ def make_pass_nets(match_num):
         fig_data = base64.b64encode(buf.getbuffer()).decode("ascii")
         fig_heatmap_2 = f'data:image/png;base64,{fig_data}'
         return fig_heatmap_1, fig_heatmap_2
+    
+    def make_shot_map(match_num, team):
+        # Filter DataFrame for events related to shots from the selected team and match_id
+        df_team_shots = df_shot[(df_shot['team'] == team) & (df_shot['match_id'] == match_num)]
+        df_team_shots['x'], df_team_shots['y'] = df_team_shots['x'] * 6/5, df_team_shots['y'] * .8
+
+        # Set up the mpl soccer pitch
+        pitch = Pitch(pitch_type='statsbomb', pitch_color='#aabb97', line_color='white', line_zorder=2)
+        fig, ax = pitch.draw(figsize=(16, 11), constrained_layout=False, tight_layout=True)
+        pitch.draw(ax=ax)
+
+        # Iterate over shots in the match
+        for index, row in df_team_shots.iterrows():
+            # Check shot outcome and set color accordingly
+            if pd.notna(row['shot_outcome']):
+                if row['shot_outcome'] == 'Goal':
+                    color = 'yellow'
+                    marker = '*'  # Square for goals
+                elif row['shot_outcome'] == 'Saved':
+                    color = 'blue'
+                    marker = 'o'  # Circle for saved shots
+                else:
+                    color = 'red'
+                    marker = 'o'  # Default to red circle for other cases
+
+                scatter_team_shots = pitch.scatter(row['x'], row['y'],
+                                                s=row['shot_statsbomb_xg']*1900, alpha=0.7,
+                                                color=color, marker=marker, ax=ax)
+
+        # Customize the plot (add title, labels, legend, etc. as needed)
+        plt.title(f'Scatter Plot of Shots for {team} in Match {match_num}', fontsize=16)
+
+        buf = BytesIO()
+
+        fig.savefig(buf, format="png")
+        # Embed the result in the html output.
+        fig_data = base64.b64encode(buf.getbuffer()).decode("ascii")
+        fig_bar_matplotlib = f'data:image/png;base64,{fig_data}'
+        # Show the plot
+        return fig_bar_matplotlib
 
     home_fig, home_name = make_pass_network_home(match_num)
     fig_away, away_name = make_pass_network_away(match_num)
     heatmap_home, heatmap_away = make_heatmaps(match_num)
-    return home_fig, fig_away,heatmap_home, heatmap_away
+    shot_map1, shot_map2 = make_shot_map(team=team1, match_num=match_num), make_shot_map(team=team2, match_num=match_num)
+
+    return home_fig, fig_away, heatmap_home, heatmap_away, shot_map1, shot_map2
 
 @app.callback(
     Output('player-dropdown', 'options'),
