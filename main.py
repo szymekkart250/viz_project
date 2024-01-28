@@ -17,6 +17,72 @@ import re
 
 highlighted_cols = {}
 
+df = pd.read_csv('events.csv')
+
+def name_change(name):
+    if name == "Korea Republic":
+        name = "South Korea"
+    if name == "IR Iran":
+        name = "Iran"
+    return name
+
+def make_pass_df(df):
+    params = ['match_id','location', 'minute', 'pass_end_location', 'type', 'pass_recipient', 'player', 'pass_body_part', 'second', 'team_id', 'team']
+    df = df[params]
+    df['team'] = df['team'].apply(name_change)
+    df_p = df[df['type'] == 'Pass']
+    df_p['location'] = df_p['location'].apply(ast.literal_eval)
+    df_p[['x', 'y']] = df_p['location'].tolist()
+    df_p['x'] = df_p['x'] * 5/6
+    df_p['y'] = df_p['y'] * 1.25
+    df_p['pass_end_location'] = df_p['pass_end_location'].apply(ast.literal_eval)
+    df_p[['x_end', 'y_end']] = df_p['pass_end_location'].tolist()
+    df_p['x_end'] = df_p['x_end'] * 5/6
+    df_p['y_end'] = df_p['y_end'] * 1.25
+    df_p['outcome'] = df_p['pass_recipient'].apply(lambda x: 1 if not pd.isna(x)  else 0)
+    df_p['color'] = df_p['outcome'].apply(lambda x: 'blue' if x == 1 else 'orange')
+    return df_p
+
+def make_carry_df(df):
+    # df = pd.read_csv('events.csv')
+    params = ['match_id','location', 'minute', 'carry_end_location', 'type', 'pass_recipient', 'player', 'pass_body_part', 'second', 'team_id', 'team']
+    df = df.copy()[params]
+    df['team'] = df['team'].apply(name_change)
+    df_p = df[df['type'] == 'Carry']
+    df_p['location'] = df_p['location'].apply(ast.literal_eval)
+    df_p[['x', 'y']] = df_p['location'].tolist()
+    df_p['x'] = df_p['x'] * 5/6
+    df_p['y'] = df_p['y'] * 1.25
+    df_p['carry_end_location'] = df_p['carry_end_location'].apply(ast.literal_eval)
+    df_p[['x_end', 'y_end']] = df_p['carry_end_location'].tolist()
+    df_p['x_end'] = df_p['x_end'] * 5/6
+    df_p['y_end'] = df_p['y_end'] * 1.25
+    df_p['outcome'] = df_p['pass_recipient'].apply(lambda x: 1 if not pd.isna(x)  else 0)
+    df_p['color'] = df_p['outcome'].apply(lambda x: 'blue' if x == 1 else 'blue')
+    return df_p
+
+def make_shot_df(df):
+    # df = pd.read_csv('events.csv')
+    params = ['match_id','location', 'minute', 'shot_end_location', 'type', 'shot_outcome', 'player', 'pass_body_part', 'second', 'team_id', 'team', 'pass_recipient']
+    df = df.loc[:,params]
+    df['team'] = df['team'].apply(name_change)
+    df_p = df[df['type'] == 'Shot']
+    # return df_p
+    df_p['location'] = df_p['location'].apply(ast.literal_eval)
+    df_p[['x', 'y']] = df_p['location'].tolist()
+    # return df_p
+    df_p['x'] = df_p['x'] * 5/6
+    df_p['y'] = df_p['y'] * 1.25
+    df_p['shot_end_location'] = df_p['shot_end_location'].apply(ast.literal_eval)
+    df_p[['x_end', 'y_end']] = df_p['shot_end_location'].apply(lambda x: pd.Series([x[0], x[1]]))
+    df_p['x_end'] = df_p['x_end'] * 5/6
+    df_p['y_end'] = df_p['y_end'] * 1.25
+    df_p['outcome'] = df_p['shot_outcome'].apply(lambda x: 1 if x == 'Goal' else 0)
+    df_p['color'] = df_p['outcome'].apply(lambda x: 'blue' if x == 1 else 'orange')
+    return df_p
+
+df_pass, df_carry, df_shot = make_pass_df(df), make_carry_df(df), make_shot_df(df)
+
 def swap(x, y):
     c = None
     c = y.copy()
@@ -30,6 +96,14 @@ def format_minute(minutes, seconds):
     else:
         time = f"{minutes}:{seconds}"
     return time
+
+def make_name_label(row):
+    if row['type'] == 'Pass':
+        return f'{row["player"]} to {row["pass_recipient"]} ({format_minute(str(row["minute"]),str(row["second"]))})'
+    if row['type'] == 'Carry':
+        return f'Carry from {row["x"]}, {row["y"]} to {row["x_end"]}, {row["y_end"]}'
+    if row['type'] == 'Shot':
+        return f'shot outcome: {row["shot_outcome"]} in {format_minute(str(row["minute"]),str(row["second"]))}'
 
 def icon(text, id):
     widget = html.Div([
@@ -51,33 +125,24 @@ plt.switch_backend('Agg')
 
 # Initialize Dash app
 app = dash.Dash(__name__, server=server, url_base_pathname='/', external_stylesheets=[dbc.themes.BOOTSTRAP, "https://use.fontawesome.com/releases/v5.8.1/css/all.css"])
+# def make_pass_df():
+#     df = pd.read_csv('events.csv')
+#     params = ['match_id','location', 'minute', 'pass_end_location', 'type', 'pass_recipient', 'player', 'pass_body_part', 'second', 'team_id', 'team']
+#     df = df[params]
+#     df['team'] = df['team'].apply(name_change)
+#     df_p = df[df['type'] == 'Pass']
+#     df_p['location'] = df_p['location'].apply(ast.literal_eval)
+#     df_p[['x', 'y']] = df_p['location'].tolist()
+#     df_p['x'] = df_p['x'] * 5/6
+#     df_p['y'] = df_p['y'] * 1.25
+#     df_p['pass_end_location'] = df_p['pass_end_location'].apply(ast.literal_eval)
+#     df_p[['x_end', 'y_end']] = df_p['pass_end_location'].tolist()
+#     df_p['x_end'] = df_p['x_end'] * 5/6
+#     df_p['y_end'] = df_p['y_end'] * 1.25
+#     df_p['outcome'] = df_p['pass_recipient'].apply(lambda x: 1 if not pd.isna(x)  else 0)
+#     df_p['color'] = df_p['outcome'].apply(lambda x: 'blue' if x == 1 else 'red')
+#     return df_p, df
 
-def name_change(name):
-    if name == "Korea Republic":
-        name = "South Korea"
-    if name == "IR Iran":
-        name = "Iran"
-    return name
-
-def make_pass_df():
-    df = pd.read_csv('events.csv')
-    params = ['match_id','location', 'minute', 'pass_end_location', 'type', 'pass_recipient', 'player', 'pass_body_part', 'second', 'team_id', 'team']
-    df = df[params]
-    df['team'] = df['team'].apply(name_change)
-    df_p = df[df['type'] == 'Pass']
-    df_p['location'] = df_p['location'].apply(ast.literal_eval)
-    df_p[['x', 'y']] = df_p['location'].tolist()
-    df_p['x'] = df_p['x'] * 5/6
-    df_p['y'] = df_p['y'] * 1.25
-    df_p['pass_end_location'] = df_p['pass_end_location'].apply(ast.literal_eval)
-    df_p[['x_end', 'y_end']] = df_p['pass_end_location'].tolist()
-    df_p['x_end'] = df_p['x_end'] * 5/6
-    df_p['y_end'] = df_p['y_end'] * 1.25
-    df_p['outcome'] = df_p['pass_recipient'].apply(lambda x: 1 if not pd.isna(x)  else 0)
-    df_p['color'] = df_p['outcome'].apply(lambda x: 'blue' if x == 1 else 'red')
-    return df_p, df
-
-df_pass, df = make_pass_df()
 # make pcp plot
 df_team_data = pd.read_csv('Data/FIFA World Cup 2022 Team Data/team_data.csv')
 
@@ -115,6 +180,108 @@ def create_pcp(columns, highlighted_country=None):
 
     return fig
 
+def plot_passmap(match_id, player, df):
+    temp = df.copy()
+
+    df_3857256 = temp[(temp['match_id'] == match_id) & (temp['player'] == player)]
+
+    # print(df_3857256.head())
+    # Create a figure
+    fig = go.Figure()
+
+    if not  df_3857256['type'].empty:
+        type = df_3857256['type'].iloc[0]
+        fig.update_layout(title_text=f'{player} {type} map')
+    else:
+        fig.update_layout(title_text=f'{player} did not have an event of this kind')
+        type = None
+
+    if type is not None:
+        trace_blue = go.Scatter(
+            x=[None],
+            y=[None],
+            mode='markers',
+            marker=dict(color='blue', size=10),
+            showlegend=True,
+            name=f"Successful {type}"
+        )
+
+        trace_red = go.Scatter(
+            x=[None],
+            y=[None],
+            mode='markers',
+            marker=dict(color='orange', size=10),
+            showlegend=True,
+            name=f"Unsuccessful {type}"
+        )
+
+
+        # Create figure
+        fig = go.Figure(data=[trace_blue, trace_red])
+
+    # Vertical Pitch Outline
+    fig.add_shape(type="rect", x0=0, y0=0, x1=100, y1=100, line=dict(color="white"), layer='below')
+
+    # Top Penalty Area
+    fig.add_shape(type="rect", x0=30, y0=88, x1=70, y1=100, line=dict(color="white"), layer='below')
+
+    # Bottom Penalty Area
+    fig.add_shape(type="rect", x0=30, y0=0, x1=70, y1=12, line=dict(color="white"), layer='below')
+
+    # Top 6-yard Box
+    fig.add_shape(type="rect", x0=44, y0=94, x1=56, y1=100, line=dict(color="white"), layer='below')
+
+    # Bottom 6-yard Box
+    fig.add_shape(type="rect", x0=44, y0=0, x1=56, y1=6, line=dict(color="white"), layer='below')
+
+    # Middle line
+    fig.add_shape(type='line', x0=0, y0=50, x1=100, y1=50, line=dict(color='white'), layer='below')
+
+    # Centre Circle
+    fig.add_shape(type="circle", xref="x", yref="y", x0=40, y0=45, x1=60, y1=55, line_color="white", layer='below')
+
+    # Centre Spot
+    fig.add_trace(go.Scatter(x=[50], y=[50], mode='markers', marker=dict(color='white', size=5), hoverinfo='none', showlegend=False))
+
+    # Top Penalty Spot
+    fig.add_trace(go.Scatter(x=[50], y=[89], mode='markers', marker=dict(color='white', size=5), hoverinfo='none', showlegend=False))
+
+    # Bottom Penalty Spot
+    fig.add_trace(go.Scatter(x=[50], y=[11], mode='markers', marker=dict(color='white', size=5), hoverinfo='none', showlegend=False))
+
+    # Hide axis labels
+    fig.update_layout(xaxis_showgrid=False, yaxis_showgrid=False, xaxis_zeroline=False, yaxis_zeroline=False)
+    fig.update_layout(xaxis_visible=False, yaxis_visible=False)
+    
+    for index, row in df_3857256.iterrows():
+        fig.add_trace(go.Scatter(
+            x=[row['y'], row['y_end']],  # Swap x and y
+            y=[row['x'], row['x_end']],  # Swap x and y
+            mode='lines+markers',
+            line={'color':row['color']},
+            # name=f'{row["pass_recipient"]}',
+            marker=dict(size=10, symbol="arrow-bar-up", angleref="previous"),
+            showlegend=False
+        ))
+
+    fig.add_trace(go.Scatter(
+        x=df_3857256['y'],  # Swap x and y
+        y=df_3857256['x'],  # Swap x and y
+        mode='markers',
+        marker=dict(size=5, symbol='circle', color=df_3857256['color']),
+        text=df_3857256.apply(make_name_label, axis=1),
+        showlegend=False
+    ))
+
+    # type = df_3857256.iloc[0]
+    # print(type)
+
+    # Adjust the layout
+    fig.update_layout(width=530, height=620)
+    fig.update_xaxes(range=[-5, 105], showgrid=False, zeroline=False)
+    fig.update_yaxes(range=[-2, 102], showgrid=False, zeroline=False)
+
+    return fig
 
 def home_layout():
     return html.Div([
@@ -239,6 +406,15 @@ def matches_layout():
                 ]),
             ]),
             dbc.Col([
+                dbc.RadioItems(id='type-select', 
+                               options=[
+                               {'label':'Pass', 'value':'Pass'},
+                               {'label':'Shot', 'value':'Shot'},
+                               {'label':'Carry', 'value':'Carry'}
+                               ],
+                               labelStyle={'display': 'inline-block'},
+                               value='Pass'
+                ),
                 dcc.Dropdown(
                     id='player-dropdown',
                     value=None,
@@ -297,7 +473,7 @@ def scatter(param1, param2, param3):
         x=param1,
         y=param2,
         size=param3,
-        title='Jazda z kurwami',
+        # title='Jazda z kurwami',
         color='games'
     )
 
@@ -427,192 +603,15 @@ def update_item_dropdown(match_id):
     Output('pass-map', 'figure'),
     Input('match-dropdown', 'value'),
     Input('player-dropdown', 'value'),
+    Input('type-select', 'value')
 )
-def plot_passmap(match_id, player):
-
-    df_3857256 = df_pass[(df_pass['match_id'] == match_id) & (df_pass['player'] == player)]
-    # Create a figure
-    fig = go.Figure()
-
-    trace_blue = go.Scatter(
-        x=[None],
-        y=[None],
-        mode='markers',
-        marker=dict(color='blue', size=10),
-        showlegend=True,
-        name="Successful Pass"
-    )
-
-    trace_red = go.Scatter(
-        x=[None],
-        y=[None],
-        mode='markers',
-        marker=dict(color='red', size=10),
-        showlegend=True,
-        name="Unsuccessful Pass"
-    )
-
-
-    # Create figure
-    fig = go.Figure(data=[trace_blue, trace_red])
-
-
-
-    # # Left Penalty Area
-    # fig.add_shape(type="rect", x0=0, y0=30, x1=12, y1=70, line=dict(color="white"))
-
-    # # Right Penalty Area
-    # fig.add_shape(type="rect", x0=88, y0=30, x1=100, y1=70, line=dict(color="white"))
-
-    # # Left 6-yard Box
-    # fig.add_shape(type="rect", x0=0, y0=44, x1=6, y1=56, line=dict(color="white"))
-
-    # # Right 6-yard Box
-    # fig.add_shape(type="rect", x0=94, y0=44, x1=100, y1=56, line=dict(color="white"))
-    
-    # # middle line
-    # fig.add_shape(type='line', x0=50, x1=50, y0=0, y1=100,line=dict(color='white'))
-    
-    # # Add pitch outline and centre line
-    # fig.add_shape(type="rect", x0=0, y0=0, x1=100, y1=100, fillcolor='LightSeaGreen', opacity=0, line_color='white')
-    
-    
-    # fig.add_shape(type="rect", x0=0, y0=0, x1=100, y1=100, line_color='white')
-
-    # # Prepare the centre circle
-    # fig.add_shape(type="circle",
-    #     xref="x", yref="y",
-    #     x0=45, y0=40, x1=55, y1=60,
-    #     line_color="white",
-    # )
-
-    # fig.update_layout(
-    # yaxis = dict(autorange="reversed")
-    # )   
-
-    # # Centre spot
-    # fig.add_trace(go.Scatter(x=[50], y=[50], mode='markers', marker=dict(color='white', size=5), hoverinfo='none', showlegend=False))
-
-    # # Left Penalty Spot
-    # fig.add_trace(go.Scatter(x=[11], y=[50], mode='markers', marker=dict(color='white', size=5), hoverinfo='none', showlegend=False))
-
-    # # Right Penalty Spot
-    # fig.add_trace(go.Scatter(x=[89], y=[50], mode='markers', marker=dict(color='white', size=5), hoverinfo='none', showlegend=False))
-
-    # Vertical Pitch Outline
-    fig.add_shape(type="rect", x0=0, y0=0, x1=100, y1=100, line=dict(color="white"), layer='below')
-
-    # Top Penalty Area
-    fig.add_shape(type="rect", x0=30, y0=88, x1=70, y1=100, line=dict(color="white"), layer='below')
-
-    # Bottom Penalty Area
-    fig.add_shape(type="rect", x0=30, y0=0, x1=70, y1=12, line=dict(color="white"), layer='below')
-
-    # Top 6-yard Box
-    fig.add_shape(type="rect", x0=44, y0=94, x1=56, y1=100, line=dict(color="white"), layer='below')
-
-    # Bottom 6-yard Box
-    fig.add_shape(type="rect", x0=44, y0=0, x1=56, y1=6, line=dict(color="white"), layer='below')
-
-    # Middle line
-    fig.add_shape(type='line', x0=0, y0=50, x1=100, y1=50, line=dict(color='white'), layer='below')
-
-    # Centre Circle
-    fig.add_shape(type="circle", xref="x", yref="y", x0=40, y0=45, x1=60, y1=55, line_color="white", layer='below')
-
-    # Centre Spot
-    fig.add_trace(go.Scatter(x=[50], y=[50], mode='markers', marker=dict(color='white', size=5), hoverinfo='none', showlegend=False))
-
-    # Top Penalty Spot
-    fig.add_trace(go.Scatter(x=[50], y=[89], mode='markers', marker=dict(color='white', size=5), hoverinfo='none', showlegend=False))
-
-    # Bottom Penalty Spot
-    fig.add_trace(go.Scatter(x=[50], y=[11], mode='markers', marker=dict(color='white', size=5), hoverinfo='none', showlegend=False))
-
-    # Hide axis labels
-    fig.update_layout(xaxis_showgrid=False, yaxis_showgrid=False, xaxis_zeroline=False, yaxis_zeroline=False)
-    fig.update_layout(xaxis_visible=False, yaxis_visible=False)
-
-    # Update the Traces for Passes
-    for index, row in df_3857256.iterrows():
-        fig.add_trace(go.Scatter(
-            x=[row['y'], row['y_end']],  # Swap x and y
-            y=[row['x'], row['x_end']],  # Swap x and y
-            mode='lines+markers',
-            line={'color':row['color']},
-            name=f'{row["pass_recipient"]}',
-            marker=dict(size=10, symbol="arrow-bar-up", angleref="previous"),
-            showlegend=False
-        ))
-
-    fig.add_trace(go.Scatter(
-        x=df_3857256['y'],  # Swap x and y
-        y=df_3857256['x'],  # Swap x and y
-        mode='markers',
-        marker=dict(size=5, symbol='circle', color=df_3857256['color']),
-        text=df_3857256.apply(lambda row: f'{row["player"]} to {row["pass_recipient"]} ({format_minute(str(row["minute"]),str(row["second"]))})', axis=1),
-        showlegend=False
-    ))
-
-    # Adjust the layout
-    fig.update_layout(width=530, height=620)
-    fig.update_layout(title_text=f'{player} pass map')
-    fig.update_xaxes(range=[-5, 105], showgrid=False, zeroline=False)
-    fig.update_yaxes(range=[-2, 102], showgrid=False, zeroline=False)
-
-    return fig
-
-    # # Hide axis labels
-    # fig.update_layout(xaxis_showgrid=False, yaxis_showgrid=False, xaxis_zeroline=False, yaxis_zeroline=False)
-    # fig.update_layout(xaxis_visible=False, yaxis_visible=False)
-
-
-
-    # # fig.update_xaxes(range=[-2, 102], visible=False)
-    # # fig.update_yaxes(range=[-2, 100], visible=False)
-
-    # # Add a trace for each row in the DataFrame
-    # for index, row in df_3857256.iterrows():
-    #     # Connect starting points to ending points with lines
-    #     fig.add_trace(go.Scatter(
-    #         x=[row['x'], row['x_end']],
-    #         y=[row['y'], row['y_end']],
-    #         mode='lines+markers',
-    #         line= {'color':row['color']},
-    #         name= f'{row["pass_recipient"]}',
-    #         marker=dict(size=10,symbol= "arrow-bar-up", angleref="previous"),
-    #         showlegend=False
-    #     ))
-
-    # fig.add_trace(go.Scatter(
-    #     x=df_3857256['x'],
-    #     y=df_3857256['y'],
-    #     mode='markers',
-    #     marker=dict(size=5, symbol='circle', color=df_3857256['color']),
-    #     text=df_3857256.apply(lambda row: f'{row["player"]} to {row["pass_recipient"]} ({format_minute(str(row["minute"]),str(row["second"]))})', axis=1),
-    #     showlegend=False
-    # ))
-
-    # fig.add_annotation(
-    #     text='&#x27F6;',  # HTML entity for a right arrow symbol
-    #     x=0.5,  # x-coordinate of the arrow (center of the plot)
-    #     y=1.8,  # y-coordinate of the arrow (above the plot)
-    #     xref='paper',  # Use paper coordinates for x
-    #     yref='paper',  # Use paper coordinates for y
-    #     showarrow=False,
-    #     font=dict(size=100),  # Adjust the font size as needed
-    # )
-
-    # # fig.update_layout(template="plotly_dark")
-
-    # fig.update_layout(width=600, height=400)
-    # fig.update_layout(title_text=f'{player} pass map')
-    #     # Set axes properties
-    # fig.update_xaxes(range=[-2, 102], showgrid=False, zeroline=False)
-    # fig.update_yaxes(range=[-5, 105], showgrid=False, zeroline=False)
-
-    # return fig
-
+def make_pitch_traces(match_id, player, type):
+    if type == 'Pass':
+        return plot_passmap(match_id=match_id, player=player, df=df_pass)
+    elif type == 'Carry':
+        return plot_passmap(match_id=match_id, player=player, df=df_carry)
+    if type == 'Shot':
+        return plot_passmap(match_id=match_id, player=player, df=df_shot)
 
 @app.callback(
     # Output('highlight-info', 'children'),
