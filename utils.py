@@ -93,6 +93,7 @@ id_to_team = {786: 'Serbia',
 
 team_to_id = {value:key for key,value in id_to_team.items()}
 
+
 relevant_team_data_columns = {
     "team": "Team",
     "avg_age": "Average Age",
