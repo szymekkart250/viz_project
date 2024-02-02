@@ -326,7 +326,8 @@ def home_layout():
                             id='data-table',
                             columns=[{'name': col, 'id': col} for col in init_columns + ['team']],
                             data=df_team_data.to_dict('records'),
-                            row_selectable='single'
+                            row_selectable='single',
+                            sort_action="native"
                         ),
                         style={'height': '630px', 'overflow-y': 'auto'}  # Set a fixed height and make it scrollable
                     )

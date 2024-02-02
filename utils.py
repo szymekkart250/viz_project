@@ -128,3 +128,11 @@ for key, value in relevant_team_data_columns.items():
     team_data_columns[value] = key
 
 
+countries_world_cup_2022 = [
+    "Qatar", "Ecuador", "Senegal", "Netherlands", "England", "Iran", 
+    "United States", "Wales", "Argentina", "Saudi Arabia", "Mexico", "Poland",
+    "France", "Australia", "Denmark", "Tunisia", "Spain", "Costa Rica",
+    "Germany", "Japan", "Belgium", "Canada", "Morocco", "Croatia", 
+    "Brazil", "Serbia", "Switzerland", "Cameroon", "Portugal", "Ghana", 
+    "Uruguay", "South Korea"
+]
