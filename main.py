@@ -324,7 +324,7 @@ def home_layout():
                     html.Div(
                         dash_table.DataTable(
                             id='data-table',
-                            columns=[{'name': col, 'id': col} for col in init_columns + ['team']],
+                            columns=[{'name': col, 'id': col} for col in ['team'] + init_columns],
                             data=df_team_data.to_dict('records'),
                             row_selectable='single',
                             sort_action="native"
@@ -401,7 +401,7 @@ def matches_layout():
             dcc.Dropdown(
                 id='match-dropdown',
                 options=[{'label': f"{value[0]} vs. {value[1]}", 'value': option} for option, value in my_dict.items()],
-                value='Tylko Legia, Ukochana Legia',
+                value= [option for option, value in my_dict.items()][0],
                 searchable=True,
                 style={
                     'color': '#36a2cc',
